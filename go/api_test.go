@@ -2,6 +2,7 @@ package main
 
 import "testing"
 
+// just some simple example tests, e2e tests might make much more sense here for full coverage
 func TestAppId(t *testing.T) {
 	testCases := []struct {
 		input    string
