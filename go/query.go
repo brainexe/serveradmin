@@ -7,7 +7,7 @@ import (
 
 type Query struct {
 	queryRequest  queryRequest
-	serverObjects []ServerObject
+	serverObjects []*ServerObject
 	loaded        bool
 }
 
@@ -18,7 +18,7 @@ func NewQuery() Query {
 			Filters:    map[string]map[string]string{},
 			Restricted: []string{"hostname"},
 		},
-		serverObjects: []ServerObject{},
+		serverObjects: []*ServerObject{},
 	}
 }
 
@@ -36,7 +36,7 @@ func (q *Query) AddFilter(attribute string, filterType string, value string) {
 	q.queryRequest.Filters[attribute][filterType] = value
 }
 
-func (q *Query) All() ([]ServerObject, error) {
+func (q *Query) All() ([]*ServerObject, error) {
 	err := q.load()
 	if err != nil {
 		return nil, err
@@ -45,14 +45,14 @@ func (q *Query) All() ([]ServerObject, error) {
 	return q.serverObjects, nil
 }
 
-func (q *Query) One() (ServerObject, error) {
+func (q *Query) One() (*ServerObject, error) {
 	err := q.load()
 	if err != nil {
-		return ServerObject{}, err
+		return nil, err
 	}
 
 	if len(q.serverObjects) != 1 {
-		return ServerObject{}, fmt.Errorf("expected exactly one server object, got %d", len(q.serverObjects))
+		return nil, fmt.Errorf("expected exactly one server object, got %d", len(q.serverObjects))
 	}
 
 	return q.serverObjects[0], nil
@@ -79,9 +79,9 @@ func (q *Query) load() error {
 	err = json.NewDecoder(resp.Body).Decode(&respServer)
 
 	// map attribute map into ServerObject objects
-	q.serverObjects = make([]ServerObject, len(respServer.Result))
+	q.serverObjects = make([]*ServerObject, len(respServer.Result))
 	for idx, object := range respServer.Result {
-		q.serverObjects[idx] = ServerObject{
+		q.serverObjects[idx] = &ServerObject{
 			attributes: object,
 		}
 	}

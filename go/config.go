@@ -7,14 +7,20 @@ import (
 	"strings"
 )
 
-const version = "4.9.0"
-const defaultBaseUrl = "https://serveradmin.innogames.de"
+const (
+	version        = "4.9.0"
+	defaultBaseUrl = "https://serveradmin.innogames.de"
+)
 
 type config struct {
-	baseURL    string
-	authToken  string
+	baseURL string
+
 	apiVersion string
-	appID      string
+
+	sshPrivateKey string
+
+	// deprecated API Token
+	authToken string
 }
 
 func getConfig() (config, error) {
@@ -29,7 +35,6 @@ func getConfig() (config, error) {
 	}
 
 	cfg.authToken = authToken
-	cfg.appID = calcAppID(authToken)
 
 	return cfg, nil
 }
