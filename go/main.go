@@ -7,6 +7,7 @@ import (
 	"strings"
 )
 
+// adminapi CLI entry point
 func main() {
 	var attributes string
 	var orderBy string
@@ -14,11 +15,12 @@ func main() {
 	flag.StringVar(&attributes, "a", "hostname", "Attributes to fetch")
 	flag.StringVar(&orderBy, "order", "", "Attributes to order by the result")
 	flag.BoolVar(&onlyOne, "one", false, "Make sure exactly one server matches with the query")
+
 	flag.Parse()
 
 	query := flag.Arg(0)
 	if query == "" {
-		fmt.Println("No query given")
+		flag.PrintDefaults()
 		os.Exit(1)
 	}
 
@@ -26,7 +28,10 @@ func main() {
 
 	q := NewQuery()
 	q.OrderBy(orderBy)
-	q.AddFilter("hostname", "Regexp", query)
+	q.AddFilter("servertype", "vm")
+	q.AddFilter("hostname", Regexp(query))
+	q.AddFilter("instance", Not(Any(2, 3)))
+	q.AddFilter("intern_ip", Not(Empty()))
 	q.SetAttributes(attributeList)
 
 	servers, err := q.All()
@@ -34,7 +39,7 @@ func main() {
 
 	for _, server := range servers {
 		for _, arg := range attributeList {
-			fmt.Printf("%s ", server.Get(arg))
+			fmt.Printf("%v ", server.Get(arg))
 		}
 		fmt.Print("\n")
 	}

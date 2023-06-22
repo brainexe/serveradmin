@@ -3,19 +3,21 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"sync"
 )
 
 type Query struct {
 	queryRequest  queryRequest
 	serverObjects []*ServerObject
 	loaded        bool
+	mutex         sync.RWMutex
 }
 
 // NewQuery initialize a new query which loads data from SA if needed
 func NewQuery() Query {
 	return Query{
 		queryRequest: queryRequest{
-			Filters:    map[string]map[string]string{},
+			Filters:    map[string]any{},
 			Restricted: []string{"hostname"},
 		},
 		serverObjects: []*ServerObject{},
@@ -30,12 +32,24 @@ func (q *Query) OrderBy(attribute string) {
 	q.queryRequest.OrderBy = attribute
 }
 
-func (q *Query) AddFilter(attribute string, filterType string, value string) {
-	// todo real filters, like Regexp(string) or Not(filter)
-	q.queryRequest.Filters[attribute] = map[string]string{}
-	q.queryRequest.Filters[attribute][filterType] = value
+func (q *Query) AddFilter(attribute string, filter any) {
+	if q.queryRequest.Filters[attribute] == nil {
+		// todo: raise error of duplicate filter
+	}
+	q.queryRequest.Filters[attribute] = filter
 }
 
+// Count matching SA objects
+func (q *Query) Count() (int, error) {
+	err := q.load()
+	if err != nil {
+		return 0, err
+	}
+
+	return len(q.serverObjects), nil
+}
+
+// All returns all matching SA objects
 func (q *Query) All() ([]*ServerObject, error) {
 	err := q.load()
 	if err != nil {
@@ -45,6 +59,7 @@ func (q *Query) All() ([]*ServerObject, error) {
 	return q.serverObjects, nil
 }
 
+// One returns exactly one matching SA object. If there is none or more than one, an error is returned.
 func (q *Query) One() (*ServerObject, error) {
 	err := q.load()
 	if err != nil {
@@ -63,12 +78,19 @@ func (q *Query) load() error {
 		return nil
 	}
 
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
 	cfg, err := getConfig()
 	if err != nil {
 		return err
 	}
 
-	// todo: always add object_id as attribute
+	// always add "object_id" as attribute as we need it to modify the object
+	if !containsString(q.queryRequest.Restricted, "object_id") {
+		q.queryRequest.Restricted = append(q.queryRequest.Restricted, "object_id")
+	}
+
 	resp, err := sendRequest(apiEndpointQuery, cfg, q.queryRequest)
 	if err != nil {
 		return err
@@ -92,13 +114,22 @@ func (q *Query) load() error {
 
 // like {"Filters": {"hostname": {"Regexp": "de1w1.foe.*"}}, "restrict": ["hostname", "object_id"]}
 type queryRequest struct {
-	Filters    map[string]map[string]string `json:"filters"`
-	Restricted []string                     `json:"restrict"`
-	OrderBy    string                       `json:"order_by,omitempty"`
+	Filters    map[string]any `json:"filters"`
+	Restricted []string       `json:"restrict"`
+	OrderBy    string         `json:"order_by,omitempty"`
 }
 
 // like {"status": "success", "result": [{"object_id": 483903, "hostname": "de1w1.foe.ig.local"}]}
 type queryResponse struct {
-	Status string              `json:"status"`
-	Result []map[string]string `json:"result"`
+	Status string           `json:"status"`
+	Result []map[string]any `json:"result"`
+}
+
+func containsString(list []string, value string) bool {
+	for _, item := range list {
+		if item == value {
+			return true
+		}
+	}
+	return false
 }

@@ -526,6 +526,8 @@ class ServerAttribute(models.Model):
             return ServerDateAttribute
         if attribute_type == 'datetime':
             return ServerDateTimeAttribute
+        if attribute_type == 'domain':
+            return ServerStringAttribute
 
 
 class ServerStringAttribute(ServerAttribute):
