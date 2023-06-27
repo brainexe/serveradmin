@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"os"
 	"strings"
+
+	"github.com/innogames/serveradmin-go/adminapi"
 )
 
 // adminapi CLI entry point
@@ -26,16 +28,25 @@ func main() {
 
 	attributeList := strings.Split(attributes, ",")
 
-	q := NewQuery()
+	q := adminapi.NewQuery()
+
+	// just adding some test filters
 	q.OrderBy(orderBy)
 	q.AddFilter("servertype", "vm")
-	q.AddFilter("hostname", Regexp(query))
-	q.AddFilter("instance", Not(Any(2, 3)))
-	q.AddFilter("intern_ip", Not(Empty()))
+	q.AddFilter("hostname", adminapi.Regexp(query))
+	q.AddFilter("instance", adminapi.Not(adminapi.Any(2, 3)))
+	q.AddFilter("intern_ip", adminapi.Not(adminapi.Empty()))
 	q.SetAttributes(attributeList)
 
 	servers, err := q.All()
-	checkErr(err)
+	if onlyOne && len(servers) != 1 {
+		checkErr(fmt.Errorf("expected exactly one server object, got %d", len(servers)))
+	}
+
+	if err != nil {
+		fmt.Println(err)
+		os.Exit(1)
+	}
 
 	for _, server := range servers {
 		for _, arg := range attributeList {
@@ -53,6 +64,7 @@ func main() {
 
 func checkErr(err error) {
 	if err != nil {
-		panic(err)
+		fmt.Println(err)
+		os.Exit(1)
 	}
 }

@@ -1,4 +1,4 @@
-package main
+package adminapi
 
 import (
 	"bytes"
@@ -26,6 +26,12 @@ type ServerObject struct {
 
 func (s ServerObject) Get(attribute string) any {
 	// todo: .GetInt() etc?
+
+	// treat float64 as int, as json numbers are float64 in go
+	if val, ok := s.attributes[attribute].(float64); ok {
+		return int(val)
+	}
+
 	return s.attributes[attribute]
 }
 
@@ -36,7 +42,7 @@ func sendRequest(endpoint string, config config, postData any) (*http.Response, 
 
 	req, err := http.NewRequest("GET", config.baseURL+endpoint, bytes.NewBuffer(postStr))
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to create request: %w", err)
 	}
 
 	now := time.Now().Unix()
@@ -46,10 +52,10 @@ func sendRequest(endpoint string, config config, postData any) (*http.Response, 
 
 	if config.sshSigner != nil {
 		// sign with private key or SSH agent
-		messageToSign := []byte(calcMessage(now, postStr))
+		messageToSign := calcMessage(now, postStr)
 		signature, sigErr := config.sshSigner.Sign(rand.Reader, messageToSign)
 		if sigErr != nil {
-			return nil, sigErr
+			return nil, fmt.Errorf("failed to sign request: %w", sigErr)
 		}
 
 		publicKey := base64.StdEncoding.EncodeToString(config.sshSigner.PublicKey().Marshal())
@@ -67,16 +73,23 @@ func sendRequest(endpoint string, config config, postData any) (*http.Response, 
 	return http.DefaultClient.Do(req)
 }
 
+// hmac sha1 of the timestamp + ":" + message
 func calcSecurityToken(authToken string, timestamp int64, data []byte) string {
-	message := calcMessage(timestamp, data)
 	mac := hmac.New(sha1.New, []byte(authToken))
-	mac.Write([]byte(message))
+	mac.Write(calcMessage(timestamp, data))
 
 	return hex.EncodeToString(mac.Sum(nil))
 }
 
-func calcMessage(timestamp int64, data []byte) string {
-	return fmt.Sprintf("%d:%s", timestamp, data)
+// just concatenate: timestamp + ":" + message
+func calcMessage(timestamp int64, data []byte) []byte {
+	return append(
+		append(
+			[]byte(strconv.FormatInt(timestamp, 10)),
+			':',
+		),
+		data...,
+	)
 }
 
 // just a sha1 hash of the API token
