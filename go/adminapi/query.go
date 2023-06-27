@@ -1,4 +1,4 @@
-package main
+package adminapi
 
 import (
 	"encoding/json"
@@ -112,14 +112,14 @@ func (q *Query) load() error {
 	return err
 }
 
-// like {"Filters": {"hostname": {"Regexp": "de1w1.foe.*"}}, "restrict": ["hostname", "object_id"]}
+// like {"Filters": {"hostname": {"Regexp": "foo.local.*"}}, "restrict": ["hostname", "object_id"]}
 type queryRequest struct {
 	Filters    map[string]any `json:"filters"`
 	Restricted []string       `json:"restrict"`
 	OrderBy    string         `json:"order_by,omitempty"`
 }
 
-// like {"status": "success", "result": [{"object_id": 483903, "hostname": "de1w1.foe.ig.local"}]}
+// like {"status": "success", "result": [{"object_id": 483903, "hostname": "foo.local"}]}
 type queryResponse struct {
 	Status string           `json:"status"`
 	Result []map[string]any `json:"result"`

@@ -1,13 +1,10 @@
-package main
+package adminapi
 
 import (
-	"bufio"
 	"crypto/rand"
 	"fmt"
 	"net"
 	"os"
-	"path/filepath"
-	"strings"
 
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/agent"
@@ -21,9 +18,7 @@ type config struct {
 	baseURL    string
 	apiVersion string
 	sshSigner  ssh.Signer
-
-	// deprecated API Token
-	authToken string
+	authToken  string
 }
 
 // todo: load only once for all requests, maybe something for sync.Once?
@@ -38,19 +33,25 @@ func getConfig() (config, error) {
 	}
 	cfg.baseURL = baseUrl
 
-	// todo: load key from disk etc...
+	// todo: load key from disk etc when env SERVERADMIN_KEY_PATH is set...
 	sshPrivateKey := []byte("")
 	if len(sshPrivateKey) > 0 {
 		signer, err := ssh.ParsePrivateKey(sshPrivateKey)
-		checkErr(err)
+		if err != nil {
+			return cfg, fmt.Errorf("failed to parse private key: %w", err)
+		}
 
 		cfg.sshSigner = signer
 	} else if os.Getenv("SSH_AUTH_SOCK") != "" {
 		sock, err := net.Dial("unix", os.Getenv("SSH_AUTH_SOCK"))
-		checkErr(err)
+		if err != nil {
+			return cfg, fmt.Errorf("failed to connect to SSH agent: %w", err)
+		}
 
 		signers, err := agent.NewClient(sock).Signers()
-		checkErr(err)
+		if err != nil {
+			return cfg, fmt.Errorf("failed to get SSH agent signers: %w", err)
+		}
 
 		for _, signer := range signers {
 			_, err := signer.Sign(rand.Reader, []byte("test"))
@@ -67,50 +68,4 @@ func getConfig() (config, error) {
 	}
 
 	return cfg, nil
-}
-
-// deprecated, maybe not needed at all
-func getAuthToken() (string, error) {
-	userHome, err := os.UserHomeDir()
-	if err != nil {
-		return "", err
-	}
-	configFilePath := filepath.Join(userHome, ".adminapirc")
-
-	if _, err := os.Stat(configFilePath); os.IsNotExist(err) {
-		return "", nil
-	}
-
-	file, err := os.Open(configFilePath)
-	if err != nil {
-		return "", err
-	}
-	defer file.Close()
-
-	scanner := bufio.NewScanner(file)
-	for scanner.Scan() {
-		line := scanner.Text()
-		if strings.HasPrefix(line, "#") {
-			continue
-		}
-
-		keyValue := strings.SplitN(line, "=", 2)
-
-		if len(keyValue) != 2 {
-			continue
-		}
-
-		key := strings.TrimSpace(keyValue[0])
-		value := strings.TrimSpace(keyValue[1])
-
-		if key == "auth_token" {
-			return value, nil
-		}
-	}
-
-	if err := scanner.Err(); err != nil {
-		return "", err
-	}
-
-	return "", nil
 }

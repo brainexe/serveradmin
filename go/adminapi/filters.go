@@ -1,4 +1,4 @@
-package main
+package adminapi
 
 // todo have proper values and more fitting types instead of any
 type value interface {
