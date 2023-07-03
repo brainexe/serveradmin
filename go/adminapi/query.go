@@ -3,19 +3,18 @@ package adminapi
 import (
 	"encoding/json"
 	"fmt"
-	"sync"
 )
 
 type Query struct {
 	queryRequest  queryRequest
 	serverObjects []*ServerObject
 	loaded        bool
-	mutex         sync.RWMutex
 }
 
 // NewQuery initialize a new query which loads data from SA if needed
 func NewQuery() Query {
 	return Query{
+		// todo: separate queryRequest from the JSON request in the end
 		queryRequest: queryRequest{
 			Filters:    map[string]any{},
 			Restricted: []string{"hostname"},
@@ -33,9 +32,6 @@ func (q *Query) OrderBy(attribute string) {
 }
 
 func (q *Query) AddFilter(attribute string, filter any) {
-	if q.queryRequest.Filters[attribute] == nil {
-		// todo: raise error of duplicate filter
-	}
 	q.queryRequest.Filters[attribute] = filter
 }
 
@@ -78,20 +74,12 @@ func (q *Query) load() error {
 		return nil
 	}
 
-	q.mutex.Lock()
-	defer q.mutex.Unlock()
-
-	cfg, err := getConfig()
-	if err != nil {
-		return err
-	}
-
 	// always add "object_id" as attribute as we need it to modify the object
 	if !containsString(q.queryRequest.Restricted, "object_id") {
 		q.queryRequest.Restricted = append(q.queryRequest.Restricted, "object_id")
 	}
 
-	resp, err := sendRequest(apiEndpointQuery, cfg, q.queryRequest)
+	resp, err := sendRequest(apiEndpointQuery, q.queryRequest)
 	if err != nil {
 		return err
 	}
@@ -110,6 +98,21 @@ func (q *Query) load() error {
 	q.loaded = true
 
 	return err
+}
+
+// NewServer creates a new server object (fetches default attributes from SA)
+func NewServer(serverType string) (*ServerObject, error) {
+	// todo urlencode
+	resp, err := sendRequest(apiEndpointNewObject+"?servertype="+serverType, nil)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	server := &ServerObject{}
+	err = json.NewDecoder(resp.Body).Decode(&server.attributes)
+
+	return server, err
 }
 
 // like {"Filters": {"hostname": {"Regexp": "foo.local.*"}}, "restrict": ["hostname", "object_id"]}

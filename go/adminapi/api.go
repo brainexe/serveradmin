@@ -16,7 +16,10 @@ import (
 	"golang.org/x/crypto/ssh"
 )
 
-const apiEndpointQuery = "/api/dataset/query"
+const (
+	apiEndpointQuery     = "/api/dataset/query"
+	apiEndpointNewObject = "/api/dataset/new_object"
+)
 
 // ServerObject is a map of key-value attributes of a SA object
 type ServerObject struct {
@@ -35,9 +38,15 @@ func (s ServerObject) Get(attribute string) any {
 	return s.attributes[attribute]
 }
 
-func sendRequest(endpoint string, config config, postData any) (*http.Response, error) {
+func sendRequest(endpoint string, postData any) (*http.Response, error) {
+	config, err := getConfig()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get config: %w", err)
+	}
+
 	postStr, _ := json.Marshal(postData)
 
+	fmt.Println(config.baseURL + endpoint)
 	fmt.Println(string(postStr))
 
 	req, err := http.NewRequest("GET", config.baseURL+endpoint, bytes.NewBuffer(postStr))

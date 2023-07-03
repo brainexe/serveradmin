@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"strings"
 
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/agent"
@@ -31,19 +32,20 @@ func getConfig() (config, error) {
 	if baseUrl == "" {
 		return cfg, fmt.Errorf("env var SERVERADMIN_BASE_URL not set")
 	}
-	cfg.baseURL = baseUrl
+	cfg.baseURL = strings.TrimRight(baseUrl, "/api")
 
-	// todo: load key from disk etc when env SERVERADMIN_KEY_PATH is set...
-	sshPrivateKey := []byte("")
-	if len(sshPrivateKey) > 0 {
+	if privateKeyPath, ok := os.LookupEnv("SERVERADMIN_KEY_PATH"); ok {
+		// todo: load key from disk etc...
+		_ = privateKeyPath
+		sshPrivateKey := []byte("")
 		signer, err := ssh.ParsePrivateKey(sshPrivateKey)
 		if err != nil {
 			return cfg, fmt.Errorf("failed to parse private key: %w", err)
 		}
 
 		cfg.sshSigner = signer
-	} else if os.Getenv("SSH_AUTH_SOCK") != "" {
-		sock, err := net.Dial("unix", os.Getenv("SSH_AUTH_SOCK"))
+	} else if authSock, ok := os.LookupEnv("SSH_AUTH_SOCK"); ok {
+		sock, err := net.Dial("unix", authSock)
 		if err != nil {
 			return cfg, fmt.Errorf("failed to connect to SSH agent: %w", err)
 		}
@@ -62,7 +64,6 @@ func getConfig() (config, error) {
 		}
 	}
 
-	// oldschool fallback
 	if cfg.sshSigner == nil {
 		cfg.authToken = os.Getenv("SERVERADMIN_TOKEN")
 	}
