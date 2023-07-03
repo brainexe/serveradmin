@@ -25,7 +25,7 @@ func TestFakeServer(t *testing.T) {
 	}))
 	defer server.Close()
 
-	os.Setenv("SSH_AUTH_SOCK", "")
+	os.Clearenv()
 	os.Setenv("SERVERADMIN_TOKEN", "1234567890")
 	os.Setenv("SERVERADMIN_BASE_URL", server.URL)
 
@@ -38,6 +38,10 @@ func TestFakeServer(t *testing.T) {
 	assert.Equal(t, 1, len(servers))
 	assert.Equal(t, "foo.bar.local", servers[0].Get("hostname"))
 	assert.Equal(t, 483903, servers[0].Get("object_id"))
+
+	one, err := query.One()
+	assert.Nil(t, err)
+	assert.Equal(t, 483903, one.Get("object_id"))
 }
 
 // just some simple example tests, e2e tests might make much more sense here for full coverage

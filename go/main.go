@@ -28,9 +28,8 @@ func main() {
 
 	attributeList := strings.Split(attributes, ",")
 
+	// just added some test filters
 	q := adminapi.NewQuery()
-
-	// just adding some test filters
 	q.OrderBy(orderBy)
 	q.AddFilter("servertype", "vm")
 	q.AddFilter("hostname", adminapi.Regexp(query))
@@ -59,6 +58,10 @@ func main() {
 	server := q.One()
 	q.Set("backup_disabled", "true")
 	q.Commit()
+
+	new, err := adminapi.NewServer("vm")
+	new.Set("hostname", "test")
+	new.Commit()
 	*/
 }
 
