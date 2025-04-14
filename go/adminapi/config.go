@@ -12,14 +12,15 @@ import (
 )
 
 const (
-	version = "4.9.0"
+	version   = "4.9.0"
+	userAgent = "Adminapi Go Client " + version
 )
 
 type config struct {
 	baseURL    string
 	apiVersion string
+	authToken  []byte
 	sshSigner  ssh.Signer
-	authToken  string
 }
 
 // todo: load only once for all requests, maybe something for sync.Once?
@@ -65,7 +66,7 @@ func getConfig() (config, error) {
 	}
 
 	if cfg.sshSigner == nil {
-		cfg.authToken = os.Getenv("SERVERADMIN_TOKEN")
+		cfg.authToken = []byte(os.Getenv("SERVERADMIN_TOKEN"))
 	}
 
 	return cfg, nil

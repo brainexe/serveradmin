@@ -13,6 +13,7 @@ import (
 	"strconv"
 	"time"
 
+	log "github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
 )
 
@@ -27,15 +28,15 @@ type ServerObject struct {
 	// todo: add changes + .Set() etc here
 }
 
+// Get safely retrieves an attribute, converting JSON float64 numbers to int when needed
 func (s ServerObject) Get(attribute string) any {
-	// todo: .GetInt() etc?
-
-	// treat float64 as int, as json numbers are float64 in go
-	if val, ok := s.attributes[attribute].(float64); ok {
-		return int(val)
+	if val, ok := s.attributes[attribute]; ok {
+		if floatVal, isFloat := val.(float64); isFloat {
+			return int(floatVal)
+		}
+		return val
 	}
-
-	return s.attributes[attribute]
+	return nil
 }
 
 func sendRequest(endpoint string, postData any) (*http.Response, error) {
@@ -45,6 +46,8 @@ func sendRequest(endpoint string, postData any) (*http.Response, error) {
 	}
 
 	postStr, _ := json.Marshal(postData)
+
+	log.Info("Sending request to: ", config.baseURL+endpoint)
 
 	fmt.Println(config.baseURL + endpoint)
 	fmt.Println(string(postStr))
@@ -57,7 +60,7 @@ func sendRequest(endpoint string, postData any) (*http.Response, error) {
 	now := time.Now().Unix()
 	req.Header.Set("Content-Type", "application/x-json")
 	req.Header.Set("X-Timestamp", strconv.FormatInt(now, 10))
-	req.Header.Set("X-API-Version", config.apiVersion)
+	req.Header.Set("User-Agent", userAgent)
 
 	if config.sshSigner != nil {
 		// sign with private key or SSH agent
@@ -72,39 +75,34 @@ func sendRequest(endpoint string, postData any) (*http.Response, error) {
 
 		req.Header.Set("X-PublicKeys", publicKey)
 		req.Header.Set("X-Signatures", sshSignature)
-	} else if config.authToken != "" {
+	} else if len(config.authToken) > 0 {
 		req.Header.Set("X-SecurityToken", calcSecurityToken(config.authToken, now, postStr))
 		req.Header.Set("X-Application", calcAppID(config.authToken))
 	}
+
+	// todo compression
 
 	fmt.Println(req.Header)
 
 	return http.DefaultClient.Do(req)
 }
 
-// hmac sha1 of the timestamp + ":" + message
-func calcSecurityToken(authToken string, timestamp int64, data []byte) string {
-	mac := hmac.New(sha1.New, []byte(authToken))
+// calcSecurityToken calculates HMAC-SHA1 of timestamp:data
+func calcSecurityToken(authToken []byte, timestamp int64, data []byte) string {
+	mac := hmac.New(sha1.New, authToken)
 	mac.Write(calcMessage(timestamp, data))
 
 	return hex.EncodeToString(mac.Sum(nil))
 }
 
-// just concatenate: timestamp + ":" + message
+// calcMessage efficiently concatenates timestamp:data without redundant allocations
 func calcMessage(timestamp int64, data []byte) []byte {
-	return append(
-		append(
-			[]byte(strconv.FormatInt(timestamp, 10)),
-			':',
-		),
-		data...,
-	)
+	return append(append(strconv.AppendInt(nil, timestamp, 10), ':'), data...)
 }
 
-// just a sha1 hash of the API token
-func calcAppID(authToken string) string {
-	hasher := sha1.New()
-	hasher.Write([]byte(authToken))
+// calcAppID computes SHA-1 hash of the auth token
+func calcAppID(authToken []byte) string {
+	hash := sha1.Sum(authToken)
 
-	return hex.EncodeToString(hasher.Sum(nil))
+	return hex.EncodeToString(hash[:])
 }

@@ -5,34 +5,33 @@ import (
 	"fmt"
 )
 
+// Query is a struct to build a query to the SA API
 type Query struct {
-	queryRequest  queryRequest
-	serverObjects []*ServerObject
-	loaded        bool
+	filters              Filters
+	restrictedAttributes []string
+	orderBy              string
+	loaded               bool
+	serverObjects        []ServerObject
 }
 
 // NewQuery initialize a new query which loads data from SA if needed
-func NewQuery() Query {
+func NewQuery(filters Filters) Query {
 	return Query{
-		// todo: separate queryRequest from the JSON request in the end
-		queryRequest: queryRequest{
-			Filters:    map[string]any{},
-			Restricted: []string{"hostname"},
-		},
-		serverObjects: []*ServerObject{},
+		filters:              filters,
+		restrictedAttributes: []string{"object_id", "hostname"},
 	}
 }
 
 func (q *Query) SetAttributes(attributes []string) {
-	q.queryRequest.Restricted = attributes
+	q.restrictedAttributes = attributes
 }
 
 func (q *Query) OrderBy(attribute string) {
-	q.queryRequest.OrderBy = attribute
+	q.orderBy = attribute
 }
 
 func (q *Query) AddFilter(attribute string, filter any) {
-	q.queryRequest.Filters[attribute] = filter
+	q.filters[attribute] = filter
 }
 
 // Count matching SA objects
@@ -46,7 +45,7 @@ func (q *Query) Count() (int, error) {
 }
 
 // All returns all matching SA objects
-func (q *Query) All() ([]*ServerObject, error) {
+func (q *Query) All() ([]ServerObject, error) {
 	err := q.load()
 	if err != nil {
 		return nil, err
@@ -56,14 +55,15 @@ func (q *Query) All() ([]*ServerObject, error) {
 }
 
 // One returns exactly one matching SA object. If there is none or more than one, an error is returned.
-func (q *Query) One() (*ServerObject, error) {
+func (q *Query) One() (ServerObject, error) {
 	err := q.load()
+
 	if err != nil {
-		return nil, err
+		return ServerObject{}, err
 	}
 
 	if len(q.serverObjects) != 1 {
-		return nil, fmt.Errorf("expected exactly one server object, got %d", len(q.serverObjects))
+		return ServerObject{}, fmt.Errorf("expected exactly one server object, got %d", len(q.serverObjects))
 	}
 
 	return q.serverObjects[0], nil
@@ -75,11 +75,17 @@ func (q *Query) load() error {
 	}
 
 	// always add "object_id" as attribute as we need it to modify the object
-	if !containsString(q.queryRequest.Restricted, "object_id") {
-		q.queryRequest.Restricted = append(q.queryRequest.Restricted, "object_id")
+	if !containsString(q.restrictedAttributes, "object_id") {
+		q.restrictedAttributes = append(q.restrictedAttributes, "object_id")
 	}
 
-	resp, err := sendRequest(apiEndpointQuery, q.queryRequest)
+	request := queryRequest{
+		Filters:    q.filters,
+		Restricted: q.restrictedAttributes,
+		OrderBy:    q.orderBy,
+	}
+
+	resp, err := sendRequest(apiEndpointQuery, request)
 	if err != nil {
 		return err
 	}
@@ -89,9 +95,9 @@ func (q *Query) load() error {
 	err = json.NewDecoder(resp.Body).Decode(&respServer)
 
 	// map attribute map into ServerObject objects
-	q.serverObjects = make([]*ServerObject, len(respServer.Result))
+	q.serverObjects = make([]ServerObject, len(respServer.Result))
 	for idx, object := range respServer.Result {
-		q.serverObjects[idx] = &ServerObject{
+		q.serverObjects[idx] = ServerObject{
 			attributes: object,
 		}
 	}
@@ -100,16 +106,16 @@ func (q *Query) load() error {
 	return err
 }
 
-// NewServer creates a new server object (fetches default attributes from SA)
-func NewServer(serverType string) (*ServerObject, error) {
+// NewObject creates a new server object (fetches default attributes from SA)
+func NewObject(serverType string) (ServerObject, error) {
 	// todo urlencode
+	server := ServerObject{}
 	resp, err := sendRequest(apiEndpointNewObject+"?servertype="+serverType, nil)
 	if err != nil {
-		return nil, err
+		return server, err
 	}
 	defer resp.Body.Close()
 
-	server := &ServerObject{}
 	err = json.NewDecoder(resp.Body).Decode(&server.attributes)
 
 	return server, err

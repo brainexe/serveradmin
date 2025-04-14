@@ -29,12 +29,12 @@ func main() {
 	attributeList := strings.Split(attributes, ",")
 
 	// just added some test filters
-	q := adminapi.NewQuery()
-	q.OrderBy(orderBy)
-	q.AddFilter("servertype", "vm")
-	q.AddFilter("hostname", adminapi.Regexp(query))
-	q.AddFilter("instance", adminapi.Not(adminapi.Any(2, 3)))
-	q.AddFilter("intern_ip", adminapi.Not(adminapi.Empty()))
+	q := adminapi.NewQuery(map[string]any{
+		"servertype": "vm",
+		"hostname":   adminapi.Regexp(query),
+		"instance":   adminapi.Not(adminapi.Any(2, 3)),
+		"intern_ip":  adminapi.Not(adminapi.Empty()),
+	})
 	q.SetAttributes(attributeList)
 
 	servers, err := q.All()
