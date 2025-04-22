@@ -3,6 +3,7 @@ package adminapi
 // todo have proper values and more fitting types instead of any
 
 type Filters map[string]any
+type filter map[string]any
 
 type value interface {
 	int | string | bool
@@ -11,7 +12,23 @@ type valueOrFilter interface {
 	value | filter
 }
 
-type filter map[string]any
+// list of all valid functions with lowercased key
+var allFilters = map[string]string{
+	"any":                 "Any",
+	"all":                 "All",
+	"containedby":         "ContainedBy",
+	"containedonlyby":     "ContainedOnlyBy",
+	"contains":            "Contains",
+	"empty":               "Empty",
+	"greaterthan":         "GreaterThan",
+	"greaterthanorequals": "GreaterThanOrEquals",
+	"lessthan":            "LessThan",
+	"lessthanorequals":    "LessThanOrEquals",
+	"not":                 "Not",
+	"overlaps":            "Overlaps",
+	"regexp":              "Regexp",
+	"startswith":          "StartsWith",
+}
 
 func Regexp(value string) filter {
 	return createFilter("Regexp", value)

@@ -3,6 +3,7 @@ package adminapi
 import (
 	"encoding/json"
 	"fmt"
+	"slices"
 )
 
 // Query is a struct to build a query to the SA API
@@ -75,7 +76,7 @@ func (q *Query) load() error {
 	}
 
 	// always add "object_id" as attribute as we need it to modify the object
-	if !containsString(q.restrictedAttributes, "object_id") {
+	if !slices.Contains(q.restrictedAttributes, "object_id") {
 		q.restrictedAttributes = append(q.restrictedAttributes, "object_id")
 	}
 
@@ -91,6 +92,7 @@ func (q *Query) load() error {
 	}
 	defer resp.Body.Close()
 
+	fmt.Println(resp.Header)
 	respServer := queryResponse{}
 	err = json.NewDecoder(resp.Body).Decode(&respServer)
 

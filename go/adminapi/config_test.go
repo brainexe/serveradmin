@@ -12,7 +12,7 @@ func TestGetConfig(t *testing.T) {
 	server := httptest.NewServer(nil)
 	defer server.Close()
 
-	os.Setenv("SERVERADMIN_BASE_URL", server.URL)
+	_ = os.Setenv("SERVERADMIN_BASE_URL", server.URL)
 
 	cfg, err := getConfig()
 

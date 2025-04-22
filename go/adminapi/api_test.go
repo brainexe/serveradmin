@@ -93,7 +93,7 @@ func BenchmarkCalcSecurityToken(b *testing.B) {
 	now := int64(123456789)
 	message := []byte("foobar")
 	authToken := []byte("1234567898")
-	for n := 0; n < b.N; n++ {
+	for b.Loop() {
 		calcSecurityToken(authToken, now, message)
 	}
 }

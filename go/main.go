@@ -28,18 +28,21 @@ func main() {
 
 	attributeList := strings.Split(attributes, ",")
 
+	filters, err := adminapi.ParseQuery(query)
+	if err != nil {
+		fmt.Println(err)
+		os.Exit(1)
+	}
+	fmt.Println("filters:", filters)
+
 	// just added some test filters
-	q := adminapi.NewQuery(map[string]any{
-		"servertype": "vm",
-		"hostname":   adminapi.Regexp(query),
-		"instance":   adminapi.Not(adminapi.Any(2, 3)),
-		"intern_ip":  adminapi.Not(adminapi.Empty()),
-	})
+	q := adminapi.NewQuery(filters)
 	q.SetAttributes(attributeList)
 
 	servers, err := q.All()
 	if onlyOne && len(servers) != 1 {
-		checkErr(fmt.Errorf("expected exactly one server object, got %d", len(servers)))
+		fmt.Println("expected exactly one server object, got", len(servers))
+		os.Exit(1)
 	}
 
 	if err != nil {
@@ -63,11 +66,4 @@ func main() {
 	new.Set("hostname", "test")
 	new.Commit()
 	*/
-}
-
-func checkErr(err error) {
-	if err != nil {
-		fmt.Println(err)
-		os.Exit(1)
-	}
 }

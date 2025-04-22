@@ -2,6 +2,7 @@ package adminapi
 
 import (
 	"bytes"
+	"compress/gzip"
 	"crypto/hmac"
 	"crypto/rand"
 	"crypto/sha1"
@@ -9,11 +10,11 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"strconv"
 	"time"
 
-	log "github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
 )
 
@@ -46,12 +47,6 @@ func sendRequest(endpoint string, postData any) (*http.Response, error) {
 	}
 
 	postStr, _ := json.Marshal(postData)
-
-	log.Info("Sending request to: ", config.baseURL+endpoint)
-
-	fmt.Println(config.baseURL + endpoint)
-	fmt.Println(string(postStr))
-
 	req, err := http.NewRequest("GET", config.baseURL+endpoint, bytes.NewBuffer(postStr))
 	if err != nil {
 		return nil, fmt.Errorf("failed to create request: %w", err)
@@ -61,6 +56,7 @@ func sendRequest(endpoint string, postData any) (*http.Response, error) {
 	req.Header.Set("Content-Type", "application/x-json")
 	req.Header.Set("X-Timestamp", strconv.FormatInt(now, 10))
 	req.Header.Set("User-Agent", userAgent)
+	req.Header.Set("Accept-Encoding", "gzip")
 
 	if config.sshSigner != nil {
 		// sign with private key or SSH agent
@@ -69,7 +65,6 @@ func sendRequest(endpoint string, postData any) (*http.Response, error) {
 		if sigErr != nil {
 			return nil, fmt.Errorf("failed to sign request: %w", sigErr)
 		}
-
 		publicKey := base64.StdEncoding.EncodeToString(config.sshSigner.PublicKey().Marshal())
 		sshSignature := base64.StdEncoding.EncodeToString(ssh.Marshal(signature))
 
@@ -80,11 +75,47 @@ func sendRequest(endpoint string, postData any) (*http.Response, error) {
 		req.Header.Set("X-Application", calcAppID(config.authToken))
 	}
 
-	// todo compression
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
 
-	fmt.Println(req.Header)
+	// If the server responded with gzip encoding, wrap the response body accordingly.
+	if resp.Header.Get("Content-Encoding") == "gzip" {
+		gz, err := gzip.NewReader(resp.Body)
+		if err != nil {
+			resp.Body.Close()
+			return nil, fmt.Errorf("failed to create gzip reader: %w", err)
+		}
 
-	return http.DefaultClient.Do(req)
+		// Replace the resp.Body with our gzip-aware ReadCloser
+		resp.Body = &gzipReadCloser{
+			Reader: gz,
+			body:   resp.Body,
+			gz:     gz,
+		}
+	}
+
+	return resp, nil
+}
+
+// gzipReadCloser wraps a gzip.Reader so that
+// closing it also closes the underlying body.
+type gzipReadCloser struct {
+	io.Reader
+	body io.Closer
+	gz   *gzip.Reader
+}
+
+// Close Read reads from the gzip.Reader.
+func (grc *gzipReadCloser) Close() error {
+	// Close the gzip.Reader itself
+	if err := grc.gz.Close(); err != nil {
+		grc.body.Close()
+		return err
+	}
+	// Then close the underlying body
+	return grc.body.Close()
 }
 
 // calcSecurityToken calculates HMAC-SHA1 of timestamp:data
