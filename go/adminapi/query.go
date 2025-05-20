@@ -12,7 +12,17 @@ type Query struct {
 	restrictedAttributes []string
 	orderBy              string
 	loaded               bool
-	serverObjects        []ServerObject
+	serverObjects        ServerObjects
+}
+
+// FromQuery creates a new Query object from a query string
+func FromQuery(query string) (Query, error) {
+	filters, err := ParseQuery(query)
+	if err != nil {
+		return Query{}, fmt.Errorf("parsing query %s: %w", query, err)
+	}
+
+	return NewQuery(filters), nil
 }
 
 // NewQuery initialize a new query which loads data from SA if needed
@@ -46,7 +56,7 @@ func (q *Query) Count() (int, error) {
 }
 
 // All returns all matching SA objects
-func (q *Query) All() ([]ServerObject, error) {
+func (q *Query) All() (ServerObjects, error) {
 	err := q.load()
 	if err != nil {
 		return nil, err
@@ -92,12 +102,11 @@ func (q *Query) load() error {
 	}
 	defer resp.Body.Close()
 
-	fmt.Println(resp.Header)
 	respServer := queryResponse{}
 	err = json.NewDecoder(resp.Body).Decode(&respServer)
 
 	// map attribute map into ServerObject objects
-	q.serverObjects = make([]ServerObject, len(respServer.Result))
+	q.serverObjects = make(ServerObjects, len(respServer.Result))
 	for idx, object := range respServer.Result {
 		q.serverObjects[idx] = ServerObject{
 			attributes: object,
@@ -134,13 +143,4 @@ type queryRequest struct {
 type queryResponse struct {
 	Status string           `json:"status"`
 	Result []map[string]any `json:"result"`
-}
-
-func containsString(list []string, value string) bool {
-	for _, item := range list {
-		if item == value {
-			return true
-		}
-	}
-	return false
 }

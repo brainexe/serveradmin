@@ -23,6 +23,8 @@ const (
 	apiEndpointNewObject = "/api/dataset/new_object"
 )
 
+type ServerObjects []ServerObject
+
 // ServerObject is a map of key-value attributes of a SA object
 type ServerObject struct {
 	attributes map[string]any
@@ -47,6 +49,7 @@ func sendRequest(endpoint string, postData any) (*http.Response, error) {
 	}
 
 	postStr, _ := json.Marshal(postData)
+	// todo timeout/context
 	req, err := http.NewRequest("GET", config.baseURL+endpoint, bytes.NewBuffer(postStr))
 	if err != nil {
 		return nil, fmt.Errorf("failed to create request: %w", err)

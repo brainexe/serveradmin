@@ -26,27 +26,23 @@ func main() {
 		os.Exit(1)
 	}
 
-	attributeList := strings.Split(attributes, ",")
-
-	filters, err := adminapi.ParseQuery(query)
+	q, err := adminapi.FromQuery(query)
 	if err != nil {
-		fmt.Println(err)
+		fmt.Println("Error parsing query:", err)
 		os.Exit(1)
 	}
-	fmt.Println("filters:", filters)
 
-	// just added some test filters
-	q := adminapi.NewQuery(filters)
+	attributeList := strings.Split(attributes, ",")
 	q.SetAttributes(attributeList)
 
 	servers, err := q.All()
-	if onlyOne && len(servers) != 1 {
-		fmt.Println("expected exactly one server object, got", len(servers))
+	if err != nil {
+		fmt.Println(err)
 		os.Exit(1)
 	}
 
-	if err != nil {
-		fmt.Println(err)
+	if onlyOne && len(servers) != 1 {
+		fmt.Println("expected exactly one server object, got", len(servers))
 		os.Exit(1)
 	}
 
