@@ -37,9 +37,15 @@ func TestFakeServer(t *testing.T) {
 	servers, err := query.All()
 	assert.NoError(t, err)
 	assert.Len(t, servers, 1)
-	assert.Equal(t, "foo.bar.local", servers[0].Get("hostname"))
-	assert.Equal(t, 483903, servers[0].Get("object_id"))
-	assert.Nil(t, servers[0].Get("nope"))
+
+	object := servers[0]
+	assert.Equal(t, "foo.bar.local", object.Get("hostname"))
+	assert.Equal(t, "foo.bar.local", object.GetString("hostname"))
+	assert.Equal(t, 483903, object.Get("object_id"))
+	assert.Equal(t, 483903, object.ObjectId())
+	assert.Equal(t, nil, object.GetString("object_id"))
+	assert.Nil(t, object.Get("nope"))
+	assert.Nil(t, object.GetString("nope"))
 
 	one, err := query.One()
 	assert.NoError(t, err)

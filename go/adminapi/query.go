@@ -3,6 +3,7 @@ package adminapi
 import (
 	"encoding/json"
 	"fmt"
+	"net/url"
 	"slices"
 )
 
@@ -119,9 +120,14 @@ func (q *Query) load() error {
 
 // NewObject creates a new server object (fetches default attributes from SA)
 func NewObject(serverType string) (ServerObject, error) {
-	// todo urlencode
 	server := ServerObject{}
-	resp, err := sendRequest(apiEndpointNewObject+"?servertype="+serverType, nil)
+
+	// Use url.Values for safe query string encoding
+	params := url.Values{}
+	params.Add("servertype", serverType)
+	fullURL := apiEndpointNewObject + "?" + params.Encode()
+
+	resp, err := sendRequest(fullURL, nil)
 	if err != nil {
 		return server, err
 	}

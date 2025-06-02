@@ -6,6 +6,7 @@ import (
 	"net"
 	"os"
 	"strings"
+	"sync"
 
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/agent"
@@ -23,8 +24,11 @@ type config struct {
 	sshSigner  ssh.Signer
 }
 
-// todo: load only once for all requests, maybe something for sync.Once?
-func getConfig() (config, error) {
+// getConfig returns the configuration for the API client. Loading config only once
+var getConfig = sync.OnceValues(loadConfig)
+
+// loadConfig returns the configuration for the API client
+var loadConfig = func() (config, error) {
 	cfg := config{
 		apiVersion: version,
 	}
@@ -36,26 +40,24 @@ func getConfig() (config, error) {
 	cfg.baseURL = strings.TrimRight(baseUrl, "/api")
 
 	if privateKeyPath, ok := os.LookupEnv("SERVERADMIN_KEY_PATH"); ok {
-		// todo: load key from disk etc...
-		_ = privateKeyPath
-		sshPrivateKey := []byte("")
-		signer, err := ssh.ParsePrivateKey(sshPrivateKey)
+		keyBytes, err := os.ReadFile(privateKeyPath)
+		if err != nil {
+			return cfg, fmt.Errorf("failed to read private key from %s: %w", privateKeyPath, err)
+		}
+		signer, err := ssh.ParsePrivateKey(keyBytes)
 		if err != nil {
 			return cfg, fmt.Errorf("failed to parse private key: %w", err)
 		}
-
 		cfg.sshSigner = signer
-	} else if authSock, ok := os.LookupEnv("SSH_AUTH_SOCK"); ok {
+	} else if authSock, ok := os.LookupEnv("SSH_AUTH_SOCK"); ok && authSock != "" {
 		sock, err := net.Dial("unix", authSock)
 		if err != nil {
 			return cfg, fmt.Errorf("failed to connect to SSH agent: %w", err)
 		}
-
 		signers, err := agent.NewClient(sock).Signers()
 		if err != nil {
 			return cfg, fmt.Errorf("failed to get SSH agent signers: %w", err)
 		}
-
 		for _, signer := range signers {
 			_, err := signer.Sign(rand.Reader, []byte("test"))
 			if err == nil {
@@ -68,6 +70,8 @@ func getConfig() (config, error) {
 	if cfg.sshSigner == nil {
 		cfg.authToken = []byte(os.Getenv("SERVERADMIN_TOKEN"))
 	}
+
+	// todo check if there is no auth token and no ssh agent
 
 	return cfg, nil
 }

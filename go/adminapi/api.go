@@ -3,6 +3,7 @@ package adminapi
 import (
 	"bytes"
 	"compress/gzip"
+	"context"
 	"crypto/hmac"
 	"crypto/rand"
 	"crypto/sha1"
@@ -23,12 +24,14 @@ const (
 	apiEndpointNewObject = "/api/dataset/new_object"
 )
 
+// ServerObjects is a slice of ServerObjects
 type ServerObjects []ServerObject
 
 // ServerObject is a map of key-value attributes of a SA object
 type ServerObject struct {
+	// the actual SA attributes of the object
 	attributes map[string]any
-	// todo: add changes + .Set() etc here
+	// todo: place for dirty changes + .Set()/.Commit() etc here
 }
 
 // Get safely retrieves an attribute, converting JSON float64 numbers to int when needed
@@ -42,6 +45,20 @@ func (s ServerObject) Get(attribute string) any {
 	return nil
 }
 
+// GetString safely retrieves an attribute as a string
+func (s ServerObject) GetString(attribute string) any {
+	val := s.Get(attribute)
+	if strVal, isString := val.(string); isString {
+		return strVal
+	}
+	return nil
+}
+
+// ObjectId returns the "object_id" attribute of the ServerObject
+func (s ServerObject) ObjectId() int {
+	return s.Get("object_id").(int)
+}
+
 func sendRequest(endpoint string, postData any) (*http.Response, error) {
 	config, err := getConfig()
 	if err != nil {
@@ -49,8 +66,7 @@ func sendRequest(endpoint string, postData any) (*http.Response, error) {
 	}
 
 	postStr, _ := json.Marshal(postData)
-	// todo timeout/context
-	req, err := http.NewRequest("GET", config.baseURL+endpoint, bytes.NewBuffer(postStr))
+	req, err := http.NewRequestWithContext(context.Background(), "GET", config.baseURL+endpoint, bytes.NewBuffer(postStr))
 	if err != nil {
 		return nil, fmt.Errorf("failed to create request: %w", err)
 	}
